@@ -82,10 +82,13 @@ jobs:
             exit 0
           fi
 
-          for project in "${projects[@]}"; do
-            echo "Restoring packages for $project"
-            dotnet restore "$project"
-          done
+          if [ -f PIGPEN.slnx ]; then
+            echo "Restoring packages via PIGPEN.slnx"
+            dotnet restore PIGPEN.slnx
+          else
+            echo "Restoring packages for ${#projects[@]} project(s)"
+            dotnet restore "${projects[@]}"
+          fi
 
       - name: dotnet format (verify no changes)
         shell: bash

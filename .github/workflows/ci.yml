@@ -19,7 +19,8 @@ jobs:
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: 7.0.x
-          cache: true
+          # Caching requires a lock file we do not maintain; skip cache to avoid failures.
+          cache: false
 
       - name: Repository hygiene
         shell: bash

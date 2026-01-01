@@ -19,19 +19,35 @@ CI checks expect binary assets to be tracked by LFS. If a large asset is committ
 Use the helper script to mirror the CI workflow locally:
 
 ```bash
-bash scripts/run_ci_checks.sh
+bash scripts/run_checks.sh
 ```
 
-The script performs repository hygiene checks, YAML linting, `.csproj` restore and format verification, and LFS enforcement for common Unity binary asset types. Ensure you have:
+On Windows, the PowerShell variant is available:
+
+```powershell
+pwsh scripts/run_checks.ps1
+```
+
+The scripts perform repository hygiene checks, YAML linting, `.csproj` restore and format verification, and LFS enforcement for common Unity binary asset types. Ensure you have:
 
 - Git LFS installed and initialized.
 - .NET 7 SDK available on your `PATH`.
 - Python with `yamllint` installed (`python -m pip install --upgrade pip yamllint`).
 
 ### Quickstart by platform
-- **Windows:** Run the command in Git Bash or Windows Subsystem for Linux (WSL) from the repository root: `bash scripts/run_ci_checks.sh`.
-- **macOS:** In Terminal, execute `bash scripts/run_ci_checks.sh`. Install prerequisites via Homebrew (`brew install git-lfs dotnet-sdk python`) and `pip install yamllint`.
-- **Linux:** From a shell, run `bash scripts/run_ci_checks.sh`. Install dependencies using your package manager (e.g., `apt` or `dnf`), then `pip install yamllint`.
+- **Windows:** Run `pwsh scripts/run_checks.ps1` from PowerShell, or `bash scripts/run_checks.sh` from Git Bash/WSL.
+- **macOS:** In Terminal, execute `bash scripts/run_checks.sh`. Install prerequisites via Homebrew (`brew install git-lfs dotnet-sdk python`) and `pip install yamllint`.
+- **Linux:** From a shell, run `bash scripts/run_checks.sh`. Install dependencies using your package manager (e.g., `apt` or `dnf`), then `pip install yamllint`.
+
+### Optional pre-commit hook
+You can wire the checks into [pre-commit](https://pre-commit.com/) so they run before each commit:
+
+```bash
+python -m pip install pre-commit
+pre-commit install
+```
+
+The repository includes a `.pre-commit-config.yaml` that invokes `scripts/run_checks.sh`. Hooks can be run manually with `pre-commit run --all-files`.
 
 ## CI behavior
 The GitHub Actions workflow `.github/workflows/ci.yml` runs on pull requests and executes:

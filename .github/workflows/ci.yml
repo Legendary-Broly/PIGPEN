@@ -122,4 +122,5 @@ jobs:
           fi
 
       - name: Unity static checks (placeholder)
-        run: echo "TODO: Add Unity-related static analysis checks."
+        run: |
+          echo "TODO: Add Unity-related static analysis checks."

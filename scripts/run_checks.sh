@@ -73,14 +73,82 @@ if [ ${#projects[@]} -eq 0 ]; then
   exit 0
 fi
 
-# Restore packages
-DOTNET_CLI_TELEMETRY_OPTOUT=1 dotnet restore "${projects[@]}"
+if [ -f PIGPEN.slnx ]; then
+  echo "Restoring packages via PIGPEN.slnx"
+  DOTNET_CLI_TELEMETRY_OPTOUT=1 DOTNET_PRINT_TELEMETRY_MESSAGE=0 DOTNET_NOLOGO=1 dotnet restore PIGPEN.slnx
+  targets=(PIGPEN.slnx)
+else
+  echo "Restoring packages for ${#projects[@]} project(s)"
+  DOTNET_CLI_TELEMETRY_OPTOUT=1 DOTNET_PRINT_TELEMETRY_MESSAGE=0 DOTNET_NOLOGO=1 dotnet restore "${projects[@]}"
+  targets=("${projects[@]}")
+fi
+
+vulnerable=0
+for target in "${targets[@]}"; do
+  echo "Checking for vulnerable packages in $target"
+  if ! report=$(DOTNET_CLI_TELEMETRY_OPTOUT=1 DOTNET_PRINT_TELEMETRY_MESSAGE=0 DOTNET_NOLOGO=1 dotnet list "$target" package --vulnerable --include-transitive --format json --no-restore); then
+    echo "Failed to run vulnerability scan for $target"
+    exit 1
+  fi
+  echo "$report"
+
+  if python - <<'PY' <<<"$report"; then
+import json
+import sys
+
+data = json.load(sys.stdin)
+
+vulnerable_packages = []
+for project in data.get("projects", []):
+  for framework in project.get("frameworks", []):
+    for package_group in ("topLevelPackages", "transitivePackages"):
+      for package in framework.get(package_group, []):
+        vulnerabilities = package.get("vulnerabilities", [])
+        if vulnerabilities:
+          vulnerable_packages.append(
+            {
+              "project": project.get("name"),
+              "framework": framework.get("framework"),
+              "package": package.get("name"),
+              "version": package.get("resolvedVersion"),
+              "count": len(vulnerabilities),
+            }
+          )
+
+if vulnerable_packages:
+  print("Vulnerable packages detected:")
+  for entry in vulnerable_packages:
+    print(
+      f"- {entry['project']} ({entry['framework']}): "
+      f"{entry['package']}@{entry['version']} ({entry['count']} vulnerability/vulnerabilities)"
+    )
+  sys.exit(1)
+
+print("No vulnerable packages detected.")
+PY
+  then
+    :
+  else
+    vulnerable=1
+  fi
+done
+
+if [ $vulnerable -ne 0 ]; then
+  echo "Vulnerable packages detected."
+  exit 1
+fi
 
 # Formatting verification
-for project in "${projects[@]}"; do
-  echo "Checking formatting for $project"
-  dotnet format "$project" --verify-no-changes --verbosity minimal
-done
+if [ -f PIGPEN.slnx ]; then
+  echo "Checking formatting via PIGPEN.slnx"
+  dotnet format PIGPEN.slnx --verify-no-changes --verbosity minimal --no-restore
+elif [ ${#projects[@]} -eq 1 ]; then
+  echo "Checking formatting for ${projects[0]}"
+  dotnet format "${projects[0]}" --verify-no-changes --verbosity minimal --no-restore
+else
+  echo "Checking formatting for all projects in workspace"
+  dotnet format --folder . --verify-no-changes --verbosity minimal --no-restore
+fi
 
 # Validate Git LFS usage
 extensions=(png psd jpg jpeg tga tif tiff exr wav mp3 ogg fbx)

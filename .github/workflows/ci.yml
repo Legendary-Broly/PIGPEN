@@ -104,16 +104,13 @@ jobs:
 
           if [ -f PIGPEN.slnx ]; then
             echo "Checking formatting via PIGPEN.slnx"
-            dotnet format PIGPEN.slnx --verify-no-changes --no-restore \
-              --verbosity minimal
+            dotnet format PIGPEN.slnx --verify-no-changes --no-restore --verbosity minimal
           elif [ ${#projects[@]} -eq 1 ]; then
             echo "Checking formatting for ${projects[0]}"
-            dotnet format "${projects[0]}" --verify-no-changes --no-restore \
-              --verbosity minimal
+            dotnet format "${projects[0]}" --verify-no-changes --no-restore --verbosity minimal
           else
             echo "Checking formatting for all projects in workspace"
-            dotnet format --folder . --verify-no-changes --no-restore \
-              --verbosity minimal
+            dotnet format --folder . --verify-no-changes --no-restore --verbosity minimal
           fi
 
       - name: Validate Git LFS usage
@@ -132,8 +129,7 @@ jobs:
               continue
             fi
 
-            if git check-attr filter -- "$file" \
-              | grep -q 'filter: lfs'; then
+            if git check-attr filter -- "$file" | grep -q 'filter: lfs'; then
               continue
             fi
 

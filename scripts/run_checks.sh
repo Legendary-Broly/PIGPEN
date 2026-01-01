@@ -43,6 +43,20 @@ if [ $found -ne 0 ] || [ $meta_errors -ne 0 ]; then
   exit 1
 fi
 
+# Ensure gitleaks is available
+if ! command -v gitleaks >/dev/null 2>&1; then
+  cat <<'EOF'
+gitleaks is not installed. Install it before running this script, for example:
+  - macOS:   brew install gitleaks
+  - Windows: winget install gitleaks.gitleaks (or download a release from GitHub)
+  - Linux:   curl -sSL https://github.com/gitleaks/gitleaks/releases/download/v8.18.4/gitleaks_8.18.4_linux_x64.tar.gz | sudo tar -C /usr/local/bin -xz gitleaks
+EOF
+  exit 1
+fi
+
+# Secret scan
+gitleaks detect --source . --no-banner --redact
+
 # Ensure yamllint is available
 if ! command -v yamllint >/dev/null 2>&1; then
   echo "yamllint is not installed. Install it with 'python -m pip install --upgrade pip yamllint' before running this script."

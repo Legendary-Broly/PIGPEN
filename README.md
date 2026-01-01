@@ -28,11 +28,18 @@ On Windows, the PowerShell variant is available:
 pwsh scripts/run_checks.ps1
 ```
 
-The scripts perform repository hygiene checks, YAML linting, `.csproj` restore and format verification, and LFS enforcement for common Unity binary asset types. Ensure you have:
+The scripts perform repository hygiene checks, YAML linting, `.csproj` restore and format verification, secret scanning, and LFS enforcement for common Unity binary asset types. Ensure you have:
 
 - Git LFS installed and initialized.
 - .NET 7 SDK available on your `PATH`.
 - Python with `yamllint` installed (`python -m pip install --upgrade pip yamllint`).
+- [gitleaks](https://github.com/gitleaks/gitleaks) installed and available on your `PATH` for secret scanning (e.g., `brew install gitleaks`, `winget install gitleaks.gitleaks`, or download the v8.18.4 release tarball: `curl -sSL https://github.com/gitleaks/gitleaks/releases/download/v8.18.4/gitleaks_8.18.4_linux_x64.tar.gz | sudo tar -C /usr/local/bin -xz gitleaks`).
+
+With prerequisites installed, you can also run gitleaks directly:
+
+```bash
+gitleaks detect --source . --no-banner --redact
+```
 
 ### Quickstart by platform
 - **Windows:** Run `pwsh scripts/run_checks.ps1` from PowerShell, or `bash scripts/run_checks.sh` from Git Bash/WSL.
@@ -53,11 +60,12 @@ The repository includes a `.pre-commit-config.yaml` that invokes `scripts/run_ch
 The GitHub Actions workflow `.github/workflows/ci.yml` runs on pull requests and executes:
 
 1. Repository hygiene checks to prevent committing `Library/`, `Temp/`, `Obj/`, `Build/`, or `Builds/` directories and to verify Unity `.meta` files are paired with assets.
-2. YAML linting with `yamllint`.
-3. `dotnet restore` for all `.csproj` files at the repo root.
-4. `dotnet format --verify-no-changes` for each project.
-5. Git LFS validation for large binary asset extensions.
-6. A placeholder step for future Unity static analysis.
+2. Secret scanning with `gitleaks detect --source . --no-banner --redact`.
+3. YAML linting with `yamllint`.
+4. `dotnet restore` for all `.csproj` files at the repo root.
+5. `dotnet format --verify-no-changes` for each project.
+6. Git LFS validation for large binary asset extensions.
+7. A placeholder step for future Unity static analysis.
 
 ## Recommended GitHub branch protection / ruleset settings
 To keep the main branch healthy:

@@ -1,3 +1,4 @@
+---
 name: ci
 
 on:
@@ -19,7 +20,9 @@ jobs:
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: 7.0.x
-          cache: true
+          # Caching requires a lock file we do not maintain;
+          # skip cache to avoid failures.
+          cache: false
 
       - name: Repository hygiene
         shell: bash
@@ -79,7 +82,10 @@ jobs:
             exit 0
           fi
 
-          dotnet restore "${projects[@]}"
+          for project in "${projects[@]}"; do
+            echo "Restoring packages for $project"
+            dotnet restore "$project"
+          done
 
       - name: dotnet format (verify no changes)
         shell: bash
@@ -103,19 +109,20 @@ jobs:
           extensions=(png psd jpg jpeg tga tif tiff exr wav mp3 ogg fbx)
           problem=0
 
-          while IFS= read -r file; do
-            size=$(stat -c%s "$file")
-            if [ "$size" -lt 102400 ]; then
-              continue
-            fi
+            while IFS= read -r file; do
+              size=$(stat -c%s "$file")
+              if [ "$size" -lt 102400 ]; then
+                continue
+              fi
 
-            if git check-attr filter -- "$file" | grep -q 'filter: lfs'; then
-              continue
-            fi
+              if git check-attr filter -- "$file" | grep -q 'filter: lfs'; then
+                continue
+              fi
 
-            echo "File should be tracked via Git LFS: $file (${size} bytes)"
-            problem=1
-          done < <(git ls-files -- $(printf "*.%s " "${extensions[@]}"))
+              echo "File should be tracked via Git LFS:"
+              echo "  $file (${size} bytes)"
+              problem=1
+            done < <(git ls-files -- $(printf "*.%s " "${extensions[@]}"))
 
           if [ $problem -ne 0 ]; then
             exit 1

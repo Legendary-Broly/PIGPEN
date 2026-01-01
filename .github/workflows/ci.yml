@@ -82,7 +82,10 @@ jobs:
             exit 0
           fi
 
-          dotnet restore "${projects[@]}"
+          for project in "${projects[@]}"; do
+            echo "Restoring packages for $project"
+            dotnet restore "$project"
+          done
 
       - name: dotnet format (verify no changes)
         shell: bash

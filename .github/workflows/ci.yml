@@ -16,6 +16,18 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Install gitleaks
+        shell: bash
+        run: |
+          set -euo pipefail
+          version=8.18.4
+          base_url="https://github.com/gitleaks/gitleaks/releases/download"
+          archive="${base_url}/v${version}/gitleaks_${version}_linux_x64.tar.gz"
+          curl -sSfL "$archive" | tar -C /usr/local/bin -xz gitleaks
+
+      - name: Secret scan
+        run: gitleaks detect --source . --no-banner --redact
+
       - name: Set up .NET SDK
         uses: actions/setup-dotnet@v4
         with:

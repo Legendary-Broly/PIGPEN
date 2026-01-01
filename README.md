@@ -33,7 +33,7 @@ The scripts perform repository hygiene checks, YAML linting, `.csproj` restore a
 - Git LFS installed and initialized.
 - .NET 7 SDK available on your `PATH`.
 - Python with `yamllint` installed (`python -m pip install --upgrade pip yamllint`).
-- [gitleaks](https://github.com/gitleaks/gitleaks) installed and available on your `PATH` for secret scanning (e.g., `brew install gitleaks`, `winget install gitleaks.gitleaks`, or download the v8.18.4 release tarball: `curl -sSL https://github.com/gitleaks/gitleaks/releases/download/v8.18.4/gitleaks_8.18.4_linux_x64.tar.gz | sudo tar -C /usr/local/bin -xz gitleaks`).
+- [gitleaks](https://github.com/gitleaks/gitleaks) installed and available on your `PATH` for secret scanning (e.g., `brew install gitleaks`, `winget install gitleaks.gitleaks`, or download the v8.18.4 release tarball: `curl -sSL https://github.com/gitleaks/gitleaks/releases/download/v8.18.4/gitleaks_8.18.4_linux_x64.tar.gz | sudo tar -C /usr/local/bin -xz gitleaks`). CI installs the same gitleaks release directly from GitHub before running scans.
 
 With prerequisites installed, you can also run gitleaks directly:
 

@@ -21,8 +21,9 @@ jobs:
         run: |
           set -euo pipefail
           version=8.18.4
-          curl -sSfL "https://github.com/gitleaks/gitleaks/releases/download/v${version}/gitleaks_${version}_linux_x64.tar.gz" \
-            | tar -C /usr/local/bin -xz gitleaks
+          base_url="https://github.com/gitleaks/gitleaks/releases/download"
+          archive="${base_url}/v${version}/gitleaks_${version}_linux_x64.tar.gz"
+          curl -sSfL "$archive" | tar -C /usr/local/bin -xz gitleaks
 
       - name: Secret scan
         run: gitleaks detect --source . --no-banner --redact

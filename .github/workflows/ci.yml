@@ -1,7 +1,7 @@
 ---
 name: ci
 
-on:
+'on':
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
 
@@ -76,7 +76,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          mapfile -t projects < <(find . -maxdepth 1 -name '*.csproj' -print)
+          mapfile -t projects \
+            < <(find . -maxdepth 1 -name '*.csproj' -print)
           if [ ${#projects[@]} -eq 0 ]; then
             echo "No C# projects found for restore."
             exit 0
@@ -94,38 +95,60 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          mapfile -t projects < <(find . -maxdepth 1 -name '*.csproj' -print)
+          mapfile -t projects \
+            < <(find . -maxdepth 1 -name '*.csproj' -print)
           if [ ${#projects[@]} -eq 0 ]; then
             echo "No C# projects found for formatting."
             exit 0
           fi
 
-          for project in "${projects[@]}"; do
-            echo "Checking formatting for $project"
-            dotnet format "$project" --verify-no-changes --verbosity minimal
-          done
+          if [ -f PIGPEN.slnx ]; then
+            echo "Checking formatting via PIGPEN.slnx"
+            dotnet format PIGPEN.slnx \
+              --verify-no-changes \
+              --no-restore \
+              --verbosity minimal
+          elif [ ${#projects[@]} -eq 1 ]; then
+            echo "Checking formatting for ${projects[0]}"
+            dotnet format "${projects[0]}" \
+              --verify-no-changes \
+              --no-restore \
+              --verbosity minimal
+          else
+            echo "Checking formatting for all projects in workspace"
+            dotnet format --folder . \
+              --verify-no-changes \
+              --no-restore \
+              --verbosity minimal
+          fi
 
       - name: Validate Git LFS usage
         shell: bash
         run: |
           set -euo pipefail
-          extensions=(png psd jpg jpeg tga tif tiff exr wav mp3 ogg fbx)
+          extensions=(
+            png psd jpg jpeg tga tif tiff exr wav
+            mp3 ogg fbx
+          )
           problem=0
 
-            while IFS= read -r file; do
-              size=$(stat -c%s "$file")
-              if [ "$size" -lt 102400 ]; then
-                continue
-              fi
+          while IFS= read -r file; do
+            size=$(stat -c%s "$file")
+            if [ "$size" -lt 102400 ]; then
+              continue
+            fi
 
-              if git check-attr filter -- "$file" | grep -q 'filter: lfs'; then
-                continue
-              fi
+            if git check-attr filter -- "$file" | \
+              grep -q 'filter: lfs'; then
+              continue
+            fi
 
-              echo "File should be tracked via Git LFS:"
-              echo "  $file (${size} bytes)"
-              problem=1
-            done < <(git ls-files -- $(printf "*.%s " "${extensions[@]}"))
+            echo "File should be tracked via Git LFS:"
+            echo "  $file (${size} bytes)"
+            problem=1
+          done < <(
+            git ls-files -- $(printf "*.%s " "${extensions[@]}")
+          )
 
           if [ $problem -ne 0 ]; then
             exit 1

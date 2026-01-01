@@ -16,13 +16,10 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Install gitleaks
-        uses: gacts/install-gitleaks@v1
-        with:
-          version: v8.18.4
-
       - name: Secret scan
-        run: gitleaks detect --source . --no-banner --redact
+        uses: gitleaks/gitleaks-action@v2
+        with:
+          args: detect --source . --no-banner --redact
 
       - name: Set up .NET SDK
         uses: actions/setup-dotnet@v4

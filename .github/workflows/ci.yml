@@ -1,0 +1,126 @@
+name: ci
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up .NET SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 7.0.x
+          cache: true
+
+      - name: Repository hygiene
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          forbidden=(Library Temp Obj Build Builds)
+          found=0
+          for dir in "${forbidden[@]}"; do
+            if [ -d "$dir" ]; then
+              echo "Forbidden directory exists: $dir/"
+              found=1
+            fi
+          done
+
+          meta_bases=(Assets Packages)
+          meta_errors=0
+          for base in "${meta_bases[@]}"; do
+            [ -d "$base" ] || continue
+
+            while IFS= read -r path; do
+              meta_file="${path}.meta"
+              if [ ! -e "$meta_file" ]; then
+                echo "Missing meta file for: $path"
+                meta_errors=1
+              fi
+            done < <(find "$base" -type f ! -name '*.meta' -print)
+
+            while IFS= read -r meta_file; do
+              asset_path="${meta_file%.meta}"
+              if [ ! -e "$asset_path" ]; then
+                echo "Orphaned meta file: $meta_file"
+                meta_errors=1
+              fi
+            done < <(find "$base" -type f -name '*.meta' -print)
+          done
+
+          if [ $found -ne 0 ] || [ $meta_errors -ne 0 ]; then
+            exit 1
+          fi
+
+      - name: Install yamllint
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install yamllint
+
+      - name: YAML lint
+        run: yamllint .
+
+      - name: Restore NuGet packages
+        shell: bash
+        run: |
+          set -euo pipefail
+          mapfile -t projects < <(find . -maxdepth 1 -name '*.csproj' -print)
+          if [ ${#projects[@]} -eq 0 ]; then
+            echo "No C# projects found for restore."
+            exit 0
+          fi
+
+          dotnet restore "${projects[@]}"
+
+      - name: dotnet format (verify no changes)
+        shell: bash
+        run: |
+          set -euo pipefail
+          mapfile -t projects < <(find . -maxdepth 1 -name '*.csproj' -print)
+          if [ ${#projects[@]} -eq 0 ]; then
+            echo "No C# projects found for formatting."
+            exit 0
+          fi
+
+          for project in "${projects[@]}"; do
+            echo "Checking formatting for $project"
+            dotnet format "$project" --verify-no-changes --verbosity minimal
+          done
+
+      - name: Validate Git LFS usage
+        shell: bash
+        run: |
+          set -euo pipefail
+          extensions=(png psd jpg jpeg tga tif tiff exr wav mp3 ogg fbx)
+          problem=0
+
+          while IFS= read -r file; do
+            size=$(stat -c%s "$file")
+            if [ "$size" -lt 102400 ]; then
+              continue
+            fi
+
+            if git check-attr filter -- "$file" | grep -q 'filter: lfs'; then
+              continue
+            fi
+
+            echo "File should be tracked via Git LFS: $file (${size} bytes)"
+            problem=1
+          done < <(git ls-files -- $(printf "*.%s " "${extensions[@]}"))
+
+          if [ $problem -ne 0 ]; then
+            exit 1
+          fi
+
+      - name: Unity static checks (placeholder)
+        run: |
+          echo "TODO: Add Unity-related static analysis checks."

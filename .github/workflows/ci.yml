@@ -100,10 +100,16 @@ jobs:
             exit 0
           fi
 
-          for project in "${projects[@]}"; do
-            echo "Checking formatting for $project"
-            dotnet format "$project" --verify-no-changes --verbosity minimal
-          done
+          if [ -f PIGPEN.slnx ]; then
+            echo "Checking formatting via PIGPEN.slnx"
+            dotnet format PIGPEN.slnx --verify-no-changes --no-restore --verbosity minimal
+          elif [ ${#projects[@]} -eq 1 ]; then
+            echo "Checking formatting for ${projects[0]}"
+            dotnet format "${projects[0]}" --verify-no-changes --no-restore --verbosity minimal
+          else
+            echo "Checking formatting for all projects in workspace"
+            dotnet format --folder . --verify-no-changes --no-restore --verbosity minimal
+          fi
 
       - name: Validate Git LFS usage
         shell: bash

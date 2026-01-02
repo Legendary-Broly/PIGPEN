@@ -149,52 +149,52 @@ jobs:
             fi
             echo "$report"
 
-            if REPORT="$report" python - <<'PY'
-              import json
-              import os
+              if python - <<'PY' <<<"$report"
+                import json
+                import sys
 
-              data = json.loads(os.environ["REPORT"])
+                data = json.load(sys.stdin)
 
-              vulnerable_packages = []
-              package_groups = ("topLevelPackages", "transitivePackages")
+                vulnerable_packages = []
+                package_groups = ("topLevelPackages", "transitivePackages")
 
-              for project in data.get("projects", []):
-                for framework in project.get("frameworks", []):
-                  for package_group in package_groups:
-                    for package in framework.get(package_group, []):
-                      vulnerabilities = package.get("vulnerabilities", [])
-                      if vulnerabilities:
-                        vulnerable_packages.append(
-                          {
-                            "project": project.get("name"),
-                            "framework": framework.get("framework"),
-                            "package": package.get("name"),
-                            "version": package.get("resolvedVersion"),
-                            "count": len(vulnerabilities),
-                          }
-                        )
+                for project in data.get("projects", []):
+                  for framework in project.get("frameworks", []):
+                    for package_group in package_groups:
+                      for package in framework.get(package_group, []):
+                        vulnerabilities = package.get("vulnerabilities", [])
+                        if vulnerabilities:
+                          vulnerable_packages.append(
+                            {
+                              "project": project.get("name"),
+                              "framework": framework.get("framework"),
+                              "package": package.get("name"),
+                              "version": package.get("resolvedVersion"),
+                              "count": len(vulnerabilities),
+                            }
+                          )
 
-              if vulnerable_packages:
-                print("Vulnerable packages detected:")
-                for entry in vulnerable_packages:
-                  print(
-                    "- {project} ({framework}): "
-                    "{package}@{version} "
-                    "({count} vulnerability/vulnerabilities)".format(
-                      project=entry["project"],
-                      framework=entry["framework"],
-                      package=entry["package"],
-                      version=entry["version"],
-                      count=entry["count"],
+                if vulnerable_packages:
+                  print("Vulnerable packages detected:")
+                  for entry in vulnerable_packages:
+                    print(
+                      "- {project} ({framework}): "
+                      "{package}@{version} "
+                      "({count} vulnerability/vulnerabilities)".format(
+                        project=entry["project"],
+                        framework=entry["framework"],
+                        package=entry["package"],
+                        version=entry["version"],
+                        count=entry["count"],
+                      )
                     )
-                  )
-                raise SystemExit(1)
+                  raise SystemExit(1)
 
-              print("No vulnerable packages detected.")
-            PY
-            then
-              :
-            else
+                print("No vulnerable packages detected.")
+              PY
+              then
+                :
+              else
               vulnerable=1
             fi
           done

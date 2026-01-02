@@ -92,7 +92,7 @@ for target in "${targets[@]}"; do
   fi
   echo "$report"
 
-  if python - <<'PY' <<<"$report"; then
+  if printf '%s' "$report" | python - <<'PY'; then
 import json
 import sys
 

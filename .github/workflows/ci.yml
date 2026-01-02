@@ -5,6 +5,11 @@ name: ci
   # Run CI on PR activity to validate changes early
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
+  # Run CI on branch pushes so changes can be validated before opening a PR
+  push:
+    branches: ["**"]
+  # Allow manually triggering CI from the Actions tab
+  workflow_dispatch:
 
 jobs:
   ci:
@@ -149,7 +154,7 @@ jobs:
             fi
             echo "$report"
 
-            if python - <<'PY' <<<"$report"; then
+            if printf '%s' "$report" | python - <<'PY'; then
 import json
 import sys
 

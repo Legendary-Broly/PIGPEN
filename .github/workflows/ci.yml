@@ -1,0 +1,252 @@
+---
+name: ci
+
+'on':
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install gitleaks
+        shell: bash
+        run: |
+          set -euo pipefail
+          version=8.18.4
+          base_url="https://github.com/gitleaks/gitleaks/releases/download"
+          archive="${base_url}/v${version}/gitleaks_${version}_linux_x64.tar.gz"
+          curl -sSfL "$archive" | tar -C /usr/local/bin -xz gitleaks
+
+      - name: Secret scan
+        run: gitleaks detect --source . --no-banner --redact
+
+      - name: Set up .NET SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 7.0.x
+          # Caching requires a lock file we do not maintain;
+          # skip cache to avoid failures.
+          cache: false
+
+      - name: Repository hygiene
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          forbidden=(Library Temp Obj Build Builds)
+          found=0
+          for dir in "${forbidden[@]}"; do
+            if [ -d "$dir" ]; then
+              echo "Forbidden directory exists: $dir/"
+              found=1
+            fi
+          done
+
+          meta_bases=(Assets Packages)
+          meta_errors=0
+          for base in "${meta_bases[@]}"; do
+            [ -d "$base" ] || continue
+
+            while IFS= read -r path; do
+              meta_file="${path}.meta"
+              if [ ! -e "$meta_file" ]; then
+                echo "Missing meta file for: $path"
+                meta_errors=1
+              fi
+            done < <(find "$base" -type f ! -name '*.meta' -print)
+
+            while IFS= read -r meta_file; do
+              asset_path="${meta_file%.meta}"
+              if [ ! -e "$asset_path" ]; then
+                echo "Orphaned meta file: $meta_file"
+                meta_errors=1
+              fi
+            done < <(find "$base" -type f -name '*.meta' -print)
+          done
+
+          if [ $found -ne 0 ] || [ $meta_errors -ne 0 ]; then
+            exit 1
+          fi
+
+      - name: Install yamllint
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install yamllint
+
+      - name: YAML lint
+        run: yamllint .
+
+      - name: Restore NuGet packages
+        shell: bash
+        run: |
+          set -euo pipefail
+          mapfile -t projects \
+            < <(find . -maxdepth 1 -name '*.csproj' -print)
+          if [ ${#projects[@]} -eq 0 ]; then
+            echo "No C# projects found for restore."
+            exit 0
+          fi
+
+          if [ -f PIGPEN.slnx ]; then
+            echo "Restoring packages via PIGPEN.slnx"
+            dotnet restore PIGPEN.slnx
+          else
+            echo "Restoring packages for ${#projects[@]} project(s)"
+            dotnet restore "${projects[@]}"
+          fi
+
+      - name: Check for vulnerable packages
+        shell: bash
+        env:
+          DOTNET_CLI_TELEMETRY_OPTOUT: 1
+          DOTNET_PRINT_TELEMETRY_MESSAGE: 0
+          DOTNET_NOLOGO: 1
+        run: |
+          set -euo pipefail
+
+          mapfile -t projects \
+            < <(find . -maxdepth 1 -name '*.csproj' -print)
+          if [ ${#projects[@]} -eq 0 ]; then
+            echo "No C# projects found for vulnerability scanning."
+            exit 0
+          fi
+
+          if [ -f PIGPEN.slnx ]; then
+            targets=(PIGPEN.slnx)
+          else
+            targets=("${projects[@]}")
+          fi
+
+          vulnerable=0
+          for target in "${targets[@]}"; do
+            echo "Checking for vulnerable packages in $target"
+            if ! report=$(dotnet list "$target" package \
+              --vulnerable \
+              --include-transitive \
+              --format json \
+              --no-restore); then
+              echo "Failed to run vulnerability scan for $target"
+              exit 1
+            fi
+            echo "$report"
+
+            if python - <<'PY' <<<"$report"; then
+import json
+import sys
+
+data = json.load(sys.stdin)
+
+vulnerable_packages = []
+for project in data.get("projects", []):
+  for framework in project.get("frameworks", []):
+    for package_group in ("topLevelPackages", "transitivePackages"):
+      for package in framework.get(package_group, []):
+        vulnerabilities = package.get("vulnerabilities", [])
+        if vulnerabilities:
+          vulnerable_packages.append(
+            {
+              "project": project.get("name"),
+              "framework": framework.get("framework"),
+              "package": package.get("name"),
+              "version": package.get("resolvedVersion"),
+              "count": len(vulnerabilities),
+            }
+          )
+
+if vulnerable_packages:
+  print("Vulnerable packages detected:")
+  for entry in vulnerable_packages:
+    print(
+      f"- {entry['project']} ({entry['framework']}): "
+      f"{entry['package']}@{entry['version']} ({entry['count']} vulnerability/vulnerabilities)"
+    )
+  sys.exit(1)
+
+print("No vulnerable packages detected.")
+PY
+            then
+              :
+            else
+              vulnerable=1
+            fi
+          done
+
+          if [ $vulnerable -ne 0 ]; then
+            echo "Vulnerable packages detected."
+            exit 1
+          fi
+
+      - name: dotnet format (verify no changes)
+        shell: bash
+        run: |
+          set -euo pipefail
+          mapfile -t projects \
+            < <(find . -maxdepth 1 -name '*.csproj' -print)
+          if [ ${#projects[@]} -eq 0 ]; then
+            echo "No C# projects found for formatting."
+            exit 0
+          fi
+
+          if [ -f PIGPEN.slnx ]; then
+            echo "Checking formatting via PIGPEN.slnx"
+            dotnet format PIGPEN.slnx \
+              --verify-no-changes \
+              --no-restore \
+              --verbosity minimal
+          elif [ ${#projects[@]} -eq 1 ]; then
+            echo "Checking formatting for ${projects[0]}"
+            dotnet format "${projects[0]}" \
+              --verify-no-changes \
+              --no-restore \
+              --verbosity minimal
+          else
+            echo "Checking formatting for all projects in workspace"
+            dotnet format --folder . \
+              --verify-no-changes \
+              --no-restore \
+              --verbosity minimal
+          fi
+
+      - name: Validate Git LFS usage
+        shell: bash
+        run: |
+          set -euo pipefail
+          extensions=(
+            png psd jpg jpeg tga tif tiff exr wav
+            mp3 ogg fbx
+          )
+          problem=0
+
+          while IFS= read -r file; do
+            size=$(stat -c%s "$file")
+            if [ "$size" -lt 102400 ]; then
+              continue
+            fi
+
+            if git check-attr filter -- "$file" | \
+              grep -q 'filter: lfs'; then
+              continue
+            fi
+
+            echo "File should be tracked via Git LFS:"
+            echo "  $file (${size} bytes)"
+            problem=1
+          done < <(
+            git ls-files -- $(printf "*.%s " "${extensions[@]}")
+          )
+
+          if [ $problem -ne 0 ]; then
+            exit 1
+          fi
+
+      - name: Unity static checks (placeholder)
+        run: |
+          echo "TODO: Add Unity-related static analysis checks."

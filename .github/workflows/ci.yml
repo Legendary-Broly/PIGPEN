@@ -149,7 +149,7 @@ jobs:
             fi
             echo "$report"
 
-            if REPORT="$report" python - <<'PY'; then
+            if REPORT="$report" python - <<'PY'
               import json
               import os
 
@@ -191,7 +191,9 @@ jobs:
                 raise SystemExit(1)
 
               print("No vulnerable packages detected.")
-              PY
+            PY
+            then
+              :
             else
               vulnerable=1
             fi

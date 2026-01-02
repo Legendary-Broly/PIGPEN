@@ -73,7 +73,13 @@ jobs:
                 echo "Missing meta file for: $path"
                 meta_errors=1
               fi
-            done < <(find "$base" -type f ! -name '*.meta' -print)
+            done < <(
+              find "$base" \
+                -type f \
+                ! -name '*.meta' \
+                ! -name '.keep' \
+                -print
+            )
 
             while IFS= read -r meta_file; do
               asset_path="${meta_file%.meta}"

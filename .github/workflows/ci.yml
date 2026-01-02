@@ -149,11 +149,11 @@ jobs:
             fi
             echo "$report"
 
-            if python - <<'PY' <<<"$report"; then
+            if REPORT="$report" python - <<'PY'; then
               import json
-              import sys
+              import os
 
-              data = json.load(sys.stdin)
+              data = json.loads(os.environ["REPORT"])
 
               vulnerable_packages = []
               package_groups = ("topLevelPackages", "transitivePackages")
@@ -188,11 +188,10 @@ jobs:
                       count=entry["count"],
                     )
                   )
-                sys.exit(1)
+                raise SystemExit(1)
 
               print("No vulnerable packages detected.")
               PY
-              :
             else
               vulnerable=1
             fi

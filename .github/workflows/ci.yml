@@ -160,7 +160,7 @@ jobs:
             fi
             echo "$report"
 
-            if printf '%s' "$report" | python - <<'PY'
+              if python - <<'PY' <<<"$report"
               import json
               import sys
 
